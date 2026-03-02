@@ -62,7 +62,7 @@ object TemplateEngine:
         // Короткое тело для SMS/Push — обрезаем до 160 символов
         shortBody = if rendered.length > 160 then rendered.take(157) + "..." else rendered
       } yield RenderedMessage(
-        subject = subject.getOrElse(""),
+        subject = subject,
         body = rendered,
         shortBody = shortBody
       )
@@ -71,7 +71,7 @@ object TemplateEngine:
       val rendered = substitute(message, data)
       val shortBody = if rendered.length > 160 then rendered.take(157) + "..." else rendered
       ZIO.succeed(RenderedMessage(
-        subject = "",
+        subject = None,
         body = rendered,
         shortBody = shortBody
       ))
@@ -86,12 +86,12 @@ object TemplateEngine:
                        val subject  = subjectForChannel(tmpl, channel).map(s => substitute(s, data))
                        val rendered = substitute(body, data)
                        val short    = if rendered.length > 160 then rendered.take(157) + "..." else rendered
-                       ZIO.succeed(RenderedMessage(subject.getOrElse(""), rendered, short))
+                       ZIO.succeed(RenderedMessage(subject, rendered, short))
                      case None =>
                        // Нет шаблона — генерируем дефолтное сообщение
                        val defaultBody = generateDefaultMessage(eventType, data)
                        val short = if defaultBody.length > 160 then defaultBody.take(157) + "..." else defaultBody
-                       ZIO.succeed(RenderedMessage(s"Уведомление: $eventType", defaultBody, short))
+                       ZIO.succeed(RenderedMessage(Some(s"Уведомление: $eventType"), defaultBody, short))
       } yield result
 
     /** Генерация дефолтного сообщения если шаблон не найден */

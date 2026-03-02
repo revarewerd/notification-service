@@ -1,7 +1,7 @@
 package com.wayrecall.tracker.notifications.channel
 
 import zio.*
-import zio.http.*
+import zio.http.{Client, Request, Response, Body, URL, Header, MediaType}
 import zio.json.*
 import com.wayrecall.tracker.notifications.domain.*
 import com.wayrecall.tracker.notifications.domain.NotificationError.*
@@ -35,7 +35,7 @@ class PushChannel(config: PushConfig, client: Client) extends NotificationChanne
          |  "message": {
          |    "token": "$deviceToken",
          |    "notification": {
-         |      "title": "${message.subject}",
+         |      "title": "${message.subject.getOrElse("")}",
          |      "body": "${message.shortBody}"
          |    }
          |  }
@@ -47,7 +47,7 @@ class PushChannel(config: PushConfig, client: Client) extends NotificationChanne
                     Request.post(URL.decode(url).getOrElse(URL.empty), Body.fromString(payload))
                       .addHeader(Header.ContentType(MediaType.application.json))
                   )
-      response <- client.request(req).mapError(e => new RuntimeException(s"FCM запрос не удался: $e"))
+      response <- ZIO.scoped(client.request(req)).mapError(e => new RuntimeException(s"FCM запрос не удался: $e"))
       body     <- response.body.asString.mapError(e => new RuntimeException(s"FCM ответ не читается: $e"))
       result   <- if response.status.isSuccess then
                     ZIO.logInfo(s"Push отправлен на $deviceToken") *>

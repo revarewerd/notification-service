@@ -23,8 +23,7 @@ object TemplateRoutes:
       withOrgId(req) { orgId =>
         ZIO.serviceWithZIO[TemplateRepository](_.findAll(orgId))
           .map(templates => Response.json(templates.toJson))
-          .catchAll(errorResponse)
-      }
+      }.catchAll(errorResponse)
     },
 
     // Создать шаблон
@@ -55,7 +54,7 @@ object TemplateRoutes:
   )
 
   private def withOrgId[R](req: Request)(f: OrganizationId => ZIO[R, NotificationError, Response]): ZIO[R, NotificationError, Response] =
-    req.url.queryParams.get("orgId").flatMap(_.headOption).flatMap(_.toLongOption) match
+    req.url.queryParams.get("orgId").flatMap(_.toLongOption) match
       case Some(id) => f(OrganizationId(id))
       case None     => ZIO.succeed(Response.json("""{"error":"orgId is required"}""").status(Status.BadRequest))
 

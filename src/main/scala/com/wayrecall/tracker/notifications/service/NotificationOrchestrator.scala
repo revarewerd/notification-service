@@ -119,8 +119,8 @@ object NotificationOrchestrator:
         channel = result.channel,
         recipient = result.recipient,
         status = result.status,
-        message = result.message.getOrElse(""),
-        errorMessage = result.errorMessage
+        message = result.messageId.getOrElse(""),
+        errorMessage = result.error
       ).unit
 
     override def testSend(req: TestNotificationRequest): IO[NotificationError, DeliveryResult] =

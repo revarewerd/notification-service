@@ -197,23 +197,24 @@ case class NotificationHistoryEntry(
 
 case class DeliveryResult(
   channel: Channel,
+  recipient: String,
   status: DeliveryStatus,
   messageId: Option[String],
   error: Option[String]
-)
+) derives JsonCodec
 
 object DeliveryResult:
-  def success(channel: Channel, messageId: String = ""): DeliveryResult =
-    DeliveryResult(channel, DeliveryStatus.Sent, Some(messageId), None)
+  def success(channel: Channel, recipient: String, messageId: String = ""): DeliveryResult =
+    DeliveryResult(channel, recipient, DeliveryStatus.Sent, Some(messageId), None)
 
-  def failed(channel: Channel, error: String): DeliveryResult =
-    DeliveryResult(channel, DeliveryStatus.Failed, None, Some(error))
+  def failed(channel: Channel, recipient: String, error: String): DeliveryResult =
+    DeliveryResult(channel, recipient, DeliveryStatus.Failed, None, Some(error))
 
-  def rateLimited(channel: Channel): DeliveryResult =
-    DeliveryResult(channel, DeliveryStatus.RateLimited, None, Some("Rate limit exceeded"))
+  def rateLimited(channel: Channel, recipient: String): DeliveryResult =
+    DeliveryResult(channel, recipient, DeliveryStatus.RateLimited, None, Some("Rate limit exceeded"))
 
-  def throttled(channel: Channel): DeliveryResult =
-    DeliveryResult(channel, DeliveryStatus.Throttled, None, Some("Throttled"))
+  def throttled(channel: Channel, recipient: String): DeliveryResult =
+    DeliveryResult(channel, recipient, DeliveryStatus.Throttled, None, Some("Throttled"))
 
 // ---- Отрендеренное сообщение ----
 

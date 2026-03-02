@@ -23,17 +23,16 @@ object HistoryRoutes:
     Method.GET / "api" / "v1" / "history" -> handler { (req: Request) =>
       withOrgId(req) { orgId =>
         val params    = req.url.queryParams
-        val vehicleId = params.get("vehicleId").flatMap(_.headOption).flatMap(_.toLongOption).map(VehicleId(_))
-        val ruleId    = params.get("ruleId").flatMap(_.headOption).flatMap(_.toLongOption).map(RuleId(_))
-        val from      = params.get("from").flatMap(_.headOption).flatMap(s => scala.util.Try(Instant.parse(s)).toOption)
-        val to        = params.get("to").flatMap(_.headOption).flatMap(s => scala.util.Try(Instant.parse(s)).toOption)
-        val status    = params.get("status").flatMap(_.headOption)
-        val limit     = params.get("limit").flatMap(_.headOption).flatMap(_.toIntOption).getOrElse(100)
+        val vehicleId = params.get("vehicleId").flatMap(_.toLongOption).map(VehicleId(_))
+        val ruleId    = params.get("ruleId").flatMap(_.toLongOption).map(RuleId(_))
+        val from      = params.get("from").flatMap(s => scala.util.Try(Instant.parse(s)).toOption)
+        val to        = params.get("to").flatMap(s => scala.util.Try(Instant.parse(s)).toOption)
+        val status    = params.get("status")
+        val limit     = params.get("limit").flatMap(_.toIntOption).getOrElse(100)
 
         ZIO.serviceWithZIO[HistoryRepository](_.find(orgId, vehicleId, ruleId, from, to, status, limit))
           .map(entries => Response.json(entries.toJson))
-          .catchAll(errorResponse)
-      }
+      }.catchAll(errorResponse)
     },
 
     // Тестовая отправка уведомления
@@ -49,7 +48,7 @@ object HistoryRoutes:
   )
 
   private def withOrgId[R](req: Request)(f: OrganizationId => ZIO[R, NotificationError, Response]): ZIO[R, NotificationError, Response] =
-    req.url.queryParams.get("orgId").flatMap(_.headOption).flatMap(_.toLongOption) match
+    req.url.queryParams.get("orgId").flatMap(_.toLongOption) match
       case Some(id) => f(OrganizationId(id))
       case None     => ZIO.succeed(Response.json("""{"error":"orgId is required"}""").status(Status.BadRequest))
 

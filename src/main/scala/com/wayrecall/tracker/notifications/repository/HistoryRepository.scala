@@ -4,6 +4,7 @@ import zio.*
 import zio.interop.catz.*
 import doobie.*
 import doobie.implicits.*
+import doobie.postgres.implicits.*
 import com.wayrecall.tracker.notifications.domain.*
 import com.wayrecall.tracker.notifications.domain.NotificationError.*
 import java.time.Instant

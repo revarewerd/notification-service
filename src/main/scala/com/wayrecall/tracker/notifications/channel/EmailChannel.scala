@@ -34,7 +34,7 @@ class EmailChannel(config: SmtpConfig) extends NotificationChannel:
       val msg = new MimeMessage(session)
       msg.setFrom(new InternetAddress(config.fromAddress, config.fromName))
       msg.setRecipients(Message.RecipientType.TO, recipient)
-      msg.setSubject(message.subject)
+      msg.setSubject(message.subject.getOrElse(""))
       msg.setContent(message.body, "text/html; charset=utf-8")
 
       // Отправка

@@ -30,15 +30,15 @@ object EventConsumer:
       _           <- ZIO.logInfo(s"Запуск Kafka consumer на топики: ${config.topics.mkString(", ")}")
       // Подписываемся на все настроенные топики
       _           <- Consumer
-                       .subscribeAnd(Subscription.topics(config.topics.toSet))
-                       .plainStream(Serde.string, Serde.string)
+                       .plainStream(Subscription.topics(config.topics.head, config.topics.tail*), Serde.string, Serde.string)
                        .mapZIO { record =>
-                         processRecord(record.value, record.topic, orchestrator)
+                         val topic = record.record.topic()
+                         processRecord(record.value, topic, orchestrator)
                            .catchAll(err =>
-                             ZIO.logError(s"Ошибка обработки события из ${record.topic}: $err")
+                             ZIO.logError(s"Ошибка обработки события из $topic: $err")
                            )
+                           .as(record.offset)
                        }
-                       .map(_.offset)
                        .aggregateAsync(Consumer.offsetBatches)
                        .mapZIO(_.commit)
                        .runDrain
@@ -66,7 +66,7 @@ object EventConsumer:
   /** Парсинг geozone-events → NotificationEvent */
   private def parseGeozoneEvent(json: String): IO[NotificationError, NotificationEvent] =
     // Ожидаемый формат: { "organizationId": 1, "vehicleId": 100, "geozoneId": 5, "geozoneName": "Склад", "action": "enter"|"leave", ... }
-    json.fromJson[Map[String, JsonValue]] match
+    json.fromJson[Map[String, zio.json.ast.Json]] match
       case Left(err) => ZIO.fail(EventParseError(s"Невалидный JSON geozone-event: $err"))
       case Right(map) =>
         val orgId = extractLong(map, "organizationId")
@@ -75,19 +75,22 @@ object EventConsumer:
         val eventType = if action == "leave" then EventType.GeozoneLeave else EventType.GeozoneEnter
         (orgId, vehId) match
           case (Some(o), Some(v)) =>
-            // Собираем payload из всех полей для шаблонов
-            val payload = map.collect { case (k, v) => k -> v.toString.stripPrefix("\"").stripSuffix("\"") }
+            val payload = map.map { case (k, v) => k -> v.toString.stripPrefix("\"").stripSuffix("\"") }
             ZIO.succeed(NotificationEvent(
               eventType = eventType,
               organizationId = OrganizationId(o),
               vehicleId = VehicleId(v),
-              payload = payload
+              vehicleName = None,
+              timestamp = java.time.Instant.now(),
+              payload = payload,
+              latitude = None,
+              longitude = None
             ))
           case _ => ZIO.fail(EventParseError("geozone-event: отсутствует organizationId или vehicleId"))
 
   /** Парсинг rule-violations → NotificationEvent */
   private def parseRuleViolation(json: String): IO[NotificationError, NotificationEvent] =
-    json.fromJson[Map[String, JsonValue]] match
+    json.fromJson[Map[String, zio.json.ast.Json]] match
       case Left(err) => ZIO.fail(EventParseError(s"Невалидный JSON rule-violation: $err"))
       case Right(map) =>
         val orgId = extractLong(map, "organizationId")
@@ -99,18 +102,22 @@ object EventConsumer:
           case _                => EventType.SpeedViolation
         (orgId, vehId) match
           case (Some(o), Some(v)) =>
-            val payload = map.collect { case (k, v) => k -> v.toString.stripPrefix("\"").stripSuffix("\"") }
+            val payload = map.map { case (k, v) => k -> v.toString.stripPrefix("\"").stripSuffix("\"") }
             ZIO.succeed(NotificationEvent(
               eventType = eventType,
               organizationId = OrganizationId(o),
               vehicleId = VehicleId(v),
-              payload = payload
+              vehicleName = None,
+              timestamp = java.time.Instant.now(),
+              payload = payload,
+              latitude = None,
+              longitude = None
             ))
           case _ => ZIO.fail(EventParseError("rule-violation: отсутствует organizationId или vehicleId"))
 
   /** Парсинг device-status → NotificationEvent */
   private def parseDeviceStatus(json: String): IO[NotificationError, NotificationEvent] =
-    json.fromJson[Map[String, JsonValue]] match
+    json.fromJson[Map[String, zio.json.ast.Json]] match
       case Left(err) => ZIO.fail(EventParseError(s"Невалидный JSON device-status: $err"))
       case Right(map) =>
         val orgId = extractLong(map, "organizationId")
@@ -122,21 +129,25 @@ object EventConsumer:
           case _         => EventType.DeviceOffline
         (orgId, vehId) match
           case (Some(o), Some(v)) =>
-            val payload = map.collect { case (k, v) => k -> v.toString.stripPrefix("\"").stripSuffix("\"") }
+            val payload = map.map { case (k, v) => k -> v.toString.stripPrefix("\"").stripSuffix("\"") }
             ZIO.succeed(NotificationEvent(
               eventType = eventType,
               organizationId = OrganizationId(o),
               vehicleId = VehicleId(v),
-              payload = payload
+              vehicleName = None,
+              timestamp = java.time.Instant.now(),
+              payload = payload,
+              latitude = None,
+              longitude = None
             ))
           case _ => ZIO.fail(EventParseError("device-status: отсутствует organizationId или vehicleId"))
 
   // === Вспомогательные функции для парсинга JSON ===
 
-  private def extractLong(map: Map[String, JsonValue], key: String): Option[Long] =
+  private def extractLong(map: Map[String, zio.json.ast.Json], key: String): Option[Long] =
     map.get(key).flatMap { v =>
       v.toString.stripPrefix("\"").stripSuffix("\"").toLongOption
     }
 
-  private def extractString(map: Map[String, JsonValue], key: String): Option[String] =
+  private def extractString(map: Map[String, zio.json.ast.Json], key: String): Option[String] =
     map.get(key).map(_.toString.stripPrefix("\"").stripSuffix("\""))

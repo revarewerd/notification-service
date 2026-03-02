@@ -37,9 +37,6 @@ lazy val root = (project in file("."))
       // JSON
       "dev.zio" %% "zio-json"            % zioJsonVersion,
 
-      // Redis
-      "dev.zio" %% "zio-redis"           % zioRedisVersion,
-
       // Doobie (PostgreSQL)
       "org.tpolecat" %% "doobie-core"    % doobieVersion,
       "org.tpolecat" %% "doobie-hikari"  % doobieVersion,

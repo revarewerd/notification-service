@@ -26,8 +26,7 @@ object RuleRoutes:
       withOrgId(req) { orgId =>
         ZIO.serviceWithZIO[RuleRepository](_.findByOrganization(orgId))
           .map(rules => Response.json(rules.toJson))
-          .catchAll(errorResponse)
-      }
+      }.catchAll(errorResponse)
     },
 
     // Получить правило по ID
@@ -38,8 +37,7 @@ object RuleRoutes:
             case Some(rule) => Response.json(rule.toJson)
             case None       => Response.json("""{"error":"Rule not found"}""").status(Status.NotFound)
           }
-          .catchAll(errorResponse)
-      }
+      }.catchAll(errorResponse)
     },
 
     // Создать правило
@@ -76,8 +74,7 @@ object RuleRoutes:
             if deleted then Response.json("""{"deleted":true}""")
             else Response.json("""{"error":"Rule not found"}""").status(Status.NotFound)
           )
-          .catchAll(errorResponse)
-      }
+      }.catchAll(errorResponse)
     },
 
     // Включить/выключить правило
@@ -88,8 +85,7 @@ object RuleRoutes:
             case Some(rule) => Response.json(rule.toJson)
             case None       => Response.json("""{"error":"Rule not found"}""").status(Status.NotFound)
           }
-          .catchAll(errorResponse)
-      }
+      }.catchAll(errorResponse)
     }
   )
 
@@ -97,7 +93,7 @@ object RuleRoutes:
 
   /** Извлечь orgId из query параметра */
   private def withOrgId[R](req: Request)(f: OrganizationId => ZIO[R, NotificationError, Response]): ZIO[R, NotificationError, Response] =
-    req.url.queryParams.get("orgId").flatMap(_.headOption).flatMap(_.toLongOption) match
+    req.url.queryParams.get("orgId").flatMap(_.toLongOption) match
       case Some(id) => f(OrganizationId(id))
       case None     => ZIO.succeed(Response.json("""{"error":"orgId is required"}""").status(Status.BadRequest))
 

@@ -1,7 +1,7 @@
 package com.wayrecall.tracker.notifications.channel
 
 import zio.*
-import zio.http.*
+import zio.http.{Client, Request, Response, Body, URL, Header, MediaType}
 import zio.json.*
 import com.wayrecall.tracker.notifications.domain.*
 import com.wayrecall.tracker.notifications.domain.NotificationError.*
@@ -30,7 +30,7 @@ class WebhookChannel(config: WebhookConfig, client: Client) extends Notification
   private def sendWithRetry(url: String, message: RenderedMessage, retriesLeft: Int): IO[Throwable, DeliveryResult] =
     val payload =
       s"""{
-         |  "subject": "${message.subject.replace("\"", "\\\"")}",
+         |  "subject": "${message.subject.getOrElse("").replace("\"", "\\\"")}",
          |  "body": "${message.body.replace("\"", "\\\"").replace("\n", "\\n")}",
          |  "timestamp": "${java.time.Instant.now()}"
          |}""".stripMargin
@@ -38,7 +38,7 @@ class WebhookChannel(config: WebhookConfig, client: Client) extends Notification
     val request = Request.post(URL.decode(url).getOrElse(URL.empty), Body.fromString(payload))
       .addHeader(Header.ContentType(MediaType.application.json))
 
-    client.request(request)
+    ZIO.scoped(client.request(request))
       .mapError(e => new RuntimeException(s"Webhook запрос не удался: $e"))
       .timeoutFail(new RuntimeException(s"Webhook таймаут: ${config.timeoutSeconds}s"))(
         Duration.fromSeconds(config.timeoutSeconds.toLong)

@@ -3,7 +3,7 @@ package com.wayrecall.tracker.notifications
 import zio.*
 import zio.http.*
 import zio.kafka.consumer.{Consumer, ConsumerSettings}
-import zio.redis.{Redis, RedisConfig => ZRedisConfig}
+import zio.kafka.consumer.diagnostics.Diagnostics
 import com.wayrecall.tracker.notifications.config.*
 import com.wayrecall.tracker.notifications.infrastructure.TransactorLayer
 import com.wayrecall.tracker.notifications.repository.*
@@ -22,8 +22,7 @@ import com.wayrecall.tracker.notifications.api.*
 
 object Main extends ZIOAppDefault:
 
-  override val bootstrap: ZLayer[ZIOAppArgs, Any, Any] =
-    Runtime.removeDefaultLoggers >>> zio.logging.consoleLogger()
+  // Используем дефолтный консольный логгер ZIO
 
   override def run: ZIO[ZIOAppArgs & Scope, Any, Any] =
     val program = for {
@@ -39,7 +38,7 @@ object Main extends ZIOAppDefault:
 
       // Запуск HTTP сервера и Kafka consumer параллельно
       _ <- (
-        Server.serve(allRoutes).fork <*>
+        Server.serve(allRoutes.toHttpApp).fork <*>
         EventConsumer.run.fork
       ).flatMap { case (httpFiber, kafkaFiber) =>
         ZIO.logInfo(s"HTTP сервер запущен на порту ${config.http.port}") *>
@@ -58,9 +57,6 @@ object Main extends ZIOAppDefault:
 
       // Kafka consumer
       kafkaConsumerLayer,
-
-      // Redis
-      redisLayer,
 
       // PostgreSQL
       TransactorLayer.live,
@@ -108,19 +104,13 @@ object Main extends ZIOAppDefault:
         ConsumerSettings(config.bootstrapServers.split(",").toList)
           .withGroupId(config.consumerGroupId)
       }
-    ).flatMap(settings => Consumer.make(settings.get))
-
-  /** Redis layer из конфигурации */
-  private val redisLayer: ZLayer[RedisConfig, Throwable, Redis] =
-    ZLayer.fromZIO(
-      ZIO.service[RedisConfig].map { config =>
-        ZRedisConfig(config.host, config.port)
-      }
-    ) >>> Redis.layer
+    ).flatMap { env =>
+      ZLayer.succeed(env.get[ConsumerSettings]) ++ ZLayer.succeed(Diagnostics.NoOp) >>> Consumer.live
+    }
 
   /** Извлечение конфигов каналов из ChannelsConfig */
   private val smtpConfigLayer: ZLayer[ChannelsConfig, Nothing, SmtpConfig] =
-    ZLayer.fromFunction((ch: ChannelsConfig) => ch.smtp)
+    ZLayer.fromFunction((ch: ChannelsConfig) => ch.email)
 
   private val smsConfigLayer: ZLayer[ChannelsConfig, Nothing, SmsConfig] =
     ZLayer.fromFunction((ch: ChannelsConfig) => ch.sms)
