@@ -53,8 +53,12 @@ object TemplateEngine:
 
     override def render(templateId: TemplateId, channel: Channel, data: Map[String, String]): IO[NotificationError, RenderedMessage] =
       for {
+        _ <- ZIO.logDebug(s"Шаблон: рендер templateId=${templateId.value}, канал=$channel")
         tmplOpt <- repo.findById(templateId)
-        tmpl    <- ZIO.fromOption(tmplOpt).mapError(_ => TemplateNotFound(templateId.value))
+        tmpl    <- ZIO.fromOption(tmplOpt).mapError(_ =>
+                     ZIO.logWarning(s"Шаблон: не найден templateId=${templateId.value}")
+                     TemplateNotFound(templateId.value)
+                   )
         body    <- ZIO.fromOption(bodyForChannel(tmpl, channel))
                      .mapError(_ => TemplateRenderError(s"Шаблон ${templateId.value} не содержит тела для канала $channel"))
         subject   = subjectForChannel(tmpl, channel).map(s => substitute(s, data))
@@ -78,6 +82,7 @@ object TemplateEngine:
 
     override def renderByEventType(orgId: OrganizationId, eventType: String, channel: Channel, data: Map[String, String]): IO[NotificationError, RenderedMessage] =
       for {
+        _ <- ZIO.logDebug(s"Шаблон: рендер по типу события=$eventType, org=${orgId.value}, канал=$channel")
         tmplOpt <- repo.findByEventType(orgId, eventType)
         result  <- tmplOpt match
                      case Some(tmpl) =>
@@ -89,9 +94,11 @@ object TemplateEngine:
                        ZIO.succeed(RenderedMessage(subject, rendered, short))
                      case None =>
                        // Нет шаблона — генерируем дефолтное сообщение
+                       ZIO.logDebug(s"Шаблон: не найден для eventType=$eventType, org=${orgId.value} — используем дефолтный") *> {
                        val defaultBody = generateDefaultMessage(eventType, data)
                        val short = if defaultBody.length > 160 then defaultBody.take(157) + "..." else defaultBody
                        ZIO.succeed(RenderedMessage(Some(s"Уведомление: $eventType"), defaultBody, short))
+                       }
       } yield result
 
     /** Генерация дефолтного сообщения если шаблон не найден */

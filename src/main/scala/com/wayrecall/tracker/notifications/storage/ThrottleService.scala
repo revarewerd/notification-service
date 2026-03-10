@@ -70,12 +70,13 @@ object ThrottleService:
           m.get(key) match
             case Some(expiry) if expiry.isAfter(now) => false
             case _ => true
-        }
+        }.tap(allowed => ZIO.logDebug(s"Дроссель: rule=${ruleId.value}, ТС=${vehicleId.value} → ${if allowed then "разрешено" else "дросселировано"}"))
 
     override def checkRateLimit(userId: UserId, channel: Channel): IO[NotificationError, Boolean] =
       val key = rateKey(userId, channel, currentHourBucket)
       val limit = limitForChannel(channel)
       rateRef.get.map(m => m.getOrElse(key, 0) < limit)
+        .tap(allowed => ZIO.when(!allowed)(ZIO.logWarning(s"Рейт-лимит: превышен для user=${userId.value}, канал=$channel, лимит=$limit")))
 
     override def markThrottled(ruleId: RuleId, vehicleId: VehicleId, throttleMinutes: Int): IO[NotificationError, Unit] =
       if throttleMinutes <= 0 then ZIO.unit

@@ -47,10 +47,12 @@ object DeliveryService:
         case Channel.Webhook  => webhook
 
     override def send(channel: Channel, recipient: String, message: RenderedMessage): IO[NotificationError, DeliveryResult] =
+      ZIO.logDebug(s"Доставка: отправка через $channel → $recipient") *>
       channelImpl(channel).send(recipient, message)
 
     override def sendAll(deliveries: List[(Channel, String, RenderedMessage)]): IO[NotificationError, List[DeliveryResult]] =
       // Отправляем параллельно, но ограничиваем concurrency до 10
+      ZIO.logInfo(s"Доставка: параллельная отправка ${deliveries.size} уведомлений по каналам: ${deliveries.map(_._1).distinct.mkString(", ")}") *>
       ZIO.foreachPar(deliveries) { case (channel, recipient, message) =>
         send(channel, recipient, message)
       }.withParallelism(10)

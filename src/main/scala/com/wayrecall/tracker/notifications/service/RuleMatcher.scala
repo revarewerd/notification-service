@@ -31,8 +31,9 @@ object RuleMatcher:
         rules    <- repo.findMatchingRules(event.organizationId, eventTypeStr, event.vehicleId.value)
         // Дополнительная фильтрация по conditions (если заданы)
         filtered  = rules.filter(rule => matchesConditions(rule, event))
-        _        <- ZIO.logDebug(s"Найдено ${filtered.size} правил для события ${event.eventType} " +
+        _        <- ZIO.logDebug(s"Правила: найдено ${rules.size} правил, после фильтрации=${filtered.size} для события ${event.eventType} " +
                       s"vehicle=${event.vehicleId.value} org=${event.organizationId.value}")
+        _        <- ZIO.when(rules.nonEmpty && filtered.isEmpty)(ZIO.logDebug(s"Правила: все ${rules.size} правил отфильтрованы conditions для ${event.eventType}"))
       } yield filtered
 
     /** Проверка дополнительных условий правила */
